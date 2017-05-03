@@ -11,6 +11,7 @@ __sets = {}
 
 from datasets.pascal_voc import pascal_voc
 from datasets.coco import coco
+from datasets.tt100k import tt100k
 import numpy as np
 
 # Set up voc_<year>_<split> using selective search "fast" mode
@@ -31,6 +32,9 @@ for year in ['2015']:
     for split in ['test', 'test-dev']:
         name = 'coco_{}_{}'.format(year, split)
         __sets[name] = (lambda split=split, year=year: coco(split, year))
+
+__sets["tt100k_train"] = (lambda img_set="train": tt100k(img_set))
+__sets["tt100k_test"]  = (lambda img_set="test": tt100k(img_set))
 
 def get_imdb(name):
     """Get an imdb (image database) by name."""
