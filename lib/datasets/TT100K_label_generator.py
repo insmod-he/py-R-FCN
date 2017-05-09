@@ -2,7 +2,7 @@ import json
 import os
 
 if __name__=="__main__":
-    root_path = "/home/hongliang/TT100K/benchmark_annotated/"
+    root_path = "/data2/HongliangHe/work2017/TrafficSign/py-R-FCN/ImageSets/tt100k/"
     lab_path  = "annotations.json"
     lab_dict  = json.load(open( os.path.join(root_path, lab_path)))
 
@@ -12,7 +12,7 @@ if __name__=="__main__":
     other_list = "other.txt"
     fds.append(open(os.path.join(root_path, train_list), "w"))
     fds.append(open(os.path.join(root_path, test_list), "w"))
-    fds.append(open(os.path.join(root_path, other_list), "w"))
+    #fds.append(open(os.path.join(root_path, other_list), "w"))
 
     all_lab_dict ={}
     img_dict = lab_dict["imgs"]
@@ -24,8 +24,8 @@ if __name__=="__main__":
             fd = fds[0]
         elif data_set=="test":
             fd = fds[1]
-        elif data_set=="other":
-            fd = fds[2]
+        #elif data_set=="other":
+        #    fd = fds[2]
         print >>fd,img_name
 
         bbs = []
