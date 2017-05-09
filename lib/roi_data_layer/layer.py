@@ -16,6 +16,7 @@ from roi_data_layer.minibatch import get_minibatch
 import numpy as np
 import yaml
 from multiprocessing import Process, Queue
+import string
 
 class RoIDataLayer(caffe.Layer):
     """Fast R-CNN data layer used for training."""
@@ -60,7 +61,13 @@ class RoIDataLayer(caffe.Layer):
         else:
             db_inds = self._get_next_minibatch_inds()
             minibatch_db = [self._roidb[i] for i in db_inds]
-            return get_minibatch(minibatch_db, self._num_classes)
+
+            img_ids = []
+            for idx in db_inds:
+                img_ids.append( string.atof(self._roidb[idx]["image"]) )
+            blobs = get_minibatch(minibatch_db, self._num_classes)
+            blobs["image_id"] = img_ids
+            return blobs
 
     def set_roidb(self, roidb):
         """Set the roidb to be used by this layer during training."""
@@ -105,6 +112,9 @@ class RoIDataLayer(caffe.Layer):
             top[idx].reshape(1, 4)
             self._name_to_top_map['gt_boxes'] = idx
             idx += 1
+
+            top[idx].reshape(1, 1)
+            self._name_to_top_map['image_id'] = idx
         else: # not using RPN
             # rois blob: holds R regions of interest, each is a 5-tuple
             # (n, x1, y1, x2, y2) specifying an image batch index n and a

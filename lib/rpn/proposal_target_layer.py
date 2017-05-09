@@ -12,6 +12,11 @@ import numpy.random as npr
 from fast_rcnn.config import cfg
 from fast_rcnn.bbox_transform import bbox_transform
 from utils.cython_bbox import bbox_overlaps
+import sys
+import os
+import json
+sys.path.append("../../data/TT100K")
+from anno_func import get_instance_segs
 
 DEBUG = False
 
@@ -24,6 +29,15 @@ class ProposalTargetLayer(caffe.Layer):
     def setup(self, bottom, top):
         layer_params = yaml.load(self.param_str)
         self._num_classes = layer_params['num_classes']
+        self._seg_num = layer_params['seg_num']
+        self._anno_path = layer_params['anno_path']
+        if not os.path.exists(self._anno_path):
+            print self._anno_path,"not exits!"
+            assert 0
+
+        fd = open(self._anno_path, "r")
+        self._anno_dict = json.load(fd)
+        fd.close()
 
         # sampled rois (0, x1, y1, x2, y2)
         top[0].reshape(1, 5, 1, 1)
@@ -35,6 +49,10 @@ class ProposalTargetLayer(caffe.Layer):
         top[3].reshape(1, self._num_classes * 4, 1, 1)
         # bbox_outside_weights
         top[4].reshape(1, self._num_classes * 4, 1, 1)
+        # segments targets
+        top[5].reshape(1, self._seg_num, 1, 1)
+        # segments weights
+        top[6].reshape(1, self._seg_num, 1, 1)
 
     def forward(self, bottom, top):
         # Proposal ROIs (0, x1, y1, x2, y2) coming from RPN
@@ -104,6 +122,58 @@ class ProposalTargetLayer(caffe.Layer):
         bbox_inside_weights = bbox_inside_weights.reshape((bbox_inside_weights.shape[0], bbox_inside_weights.shape[1], 1, 1))
         top[4].reshape(*bbox_inside_weights.shape)
         top[4].data[...] = np.array(bbox_inside_weights > 0).astype(np.float32)
+
+        # bottom[2] --> image name
+        assert bottom[2].data.size()==1
+        imgid = "%d"%bottom[2].data[:][0]
+
+        # 1.Check the format of rois. 2.The format of segs
+        roi_boxes = rois[:,1:].tolist()
+        segs = get_instance_segs(roi_boxes, self._anno_dict, imgid, line_num=self._seg_num)
+        seg_targets = []
+        seg_weights = []
+        roi_num = len(roi_boxes)
+        assert len(segs==roi_num)
+
+        for idx in xrange(roi_num):
+            seg = segs[idx]
+            left_pts  = []
+            right_pts = []
+            left_weights  = []
+            right_weights = []
+
+            if len(seg)==0:
+                for y_idx in xrange(self._seg_num):
+                    left_pts.append(0)
+                    left_weights.append(0)
+                    right_pts.append(0)
+                    right_weights.append(0)
+            else:
+                # ROIs (0, x1, y1, x2, y2)
+                roi_width = rois[idx, 3] - rois[idx, 1]
+                roi_x_ctr = (rois[idx,3] + rois[idx,1])/2.0
+                for y_idx in xrange(self._seg_num):
+                    x1 = seg[y_idx][1]
+                    x2 = seg[y_idx][2]
+                    dx1 = (x1 - roi_x_ctr) / roi_width
+                    dx2 = (x2 - roi_x_ctr) / roi_width
+                    left_pts.append(dx1)
+                    left_weights.append(1.0)
+                    right_pts.append(dx2)
+                    right_weights.append(1.0)
+            seg_targets.append( left_pts.extend(right_pts) )
+            seg_weights.append( left_weights.extend(right_weights) )
+
+        # N * seg_num
+        seg_targets = np.array(seg_targets).astype(np.float32)
+        seg_targets = seg_targets.reshape((seg_targets.shape[0], seg_targets.shape[1], 1, 1))
+        top[5].reshape(*seg_targets.shape)
+        top[5].data[...] = np.array(seg_targets).astype(np.float32)
+
+        seg_weights = np.array(seg_weights).astype(np.float32)
+        seg_weights = seg_weights.reshape((seg_weights.shape[0], seg_weights.shape[1], 1, 1))
+        top[6].reshape(*seg_weights.shape)
+        top[6].data[...] = seg_weights
 
     def backward(self, top, propagate_down, bottom):
         """This layer does not propagate gradients."""

@@ -59,7 +59,7 @@ def get_instance_segs(boxes, annos, imgid, line_num=14):
         max_IoU_idx = np.argmax(IoU, axis=0)
         max_IoU = np.max(IoU, axis=0)
         if max_IoU<=0.1:
-            continue
+            all_seg_instance.append([])
 
         obj = objs[max_IoU_idx]
         box_y1 = box[1]
@@ -203,20 +203,24 @@ def random_show_seg(annos, imgid, imgdata):
     rnd_boxes = []
     for obj in objs:
         box = [obj["bbox"]["xmin"], obj["bbox"]["ymin"], obj["bbox"]["xmax"], obj["bbox"]["ymax"]]
-        rnd_num = np.random.uniform(-0.3, 0.3, [1,4])[0]
-        box = box +  (box[3]-box[1])* rnd_num
+        rnd_num = np.random.uniform(-0.2, 0.2, [1,4])[0]
+        box = box + (box[3]-box[1])*rnd_num
+        box[1] -= (box[3]-box[1])*0.25
+        box[3] += (box[3]-box[1])*0.25
         if box[2]<=box[0] or box[3]<=box[1]:
             continue
         rnd_boxes.append(box)
 
     # show
-    segs = get_instance_segs(rnd_boxes, annos, imgid, line_num=14)
+    segs = get_instance_segs(rnd_boxes, annos, imgid, line_num=21)
     for box in rnd_boxes:
         pt1 = (int(box[0]+0.5), int(box[1]+0.5))
         pt2 = (int(box[2]+0.5), int(box[3]+0.5))
         cv2.rectangle(imgdata, pt1, pt2, color=(0,0,255), thickness=3)
 
     for seg in segs:
+        if len(seg)==0:
+            continue
         for y,x1,x2 in seg:
             pt1 = (int(x1+0.5), int(y+0.5))
             pt2 = (int(x2+0.5), int(y+0.5))
