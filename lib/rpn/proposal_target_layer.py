@@ -125,7 +125,7 @@ class ProposalTargetLayer(caffe.Layer):
 
         # bottom[2] --> image name
         assert bottom[2].data.size()==1
-        imgid = "%d"%bottom[2].data[:][0]
+        imgid = "%d"% int(bottom[2].data[:][0])
 
         # 1.Check the format of rois. 2.The format of segs
         roi_boxes = rois[:,1:].tolist()
