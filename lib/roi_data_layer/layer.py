@@ -17,6 +17,7 @@ import numpy as np
 import yaml
 from multiprocessing import Process, Queue
 import string
+import pdb
 
 class RoIDataLayer(caffe.Layer):
     """Fast R-CNN data layer used for training."""
@@ -64,9 +65,13 @@ class RoIDataLayer(caffe.Layer):
 
             img_ids = []
             for idx in db_inds:
-                img_ids.append( string.atof(self._roidb[idx]["image"]) )
+                img_id  = self._roidb[idx]["image"].split("/")[-1].split(".")[0]
+                flipped = self._roidb[idx]["flipped"]
+                print "image_id:",img_id,"flipped:",flipped
+
+                img_ids.append( [string.atof(img_id), int(flipped)] )
             blobs = get_minibatch(minibatch_db, self._num_classes)
-            blobs["image_id"] = img_ids
+            blobs["image_id"] = np.array(img_ids)
             return blobs
 
     def set_roidb(self, roidb):
@@ -152,6 +157,7 @@ class RoIDataLayer(caffe.Layer):
 
     def forward(self, bottom, top):
         """Get blobs and copy them into this layer's top blob vector."""
+        #pdb.set_trace()
         blobs = self._get_next_minibatch()
 
         for blob_name, blob in blobs.iteritems():

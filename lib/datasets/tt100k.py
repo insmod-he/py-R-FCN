@@ -27,7 +27,7 @@ class tt100k(imdb):
         self._image_set = image_set
         self._devkit_path = self._get_default_path() if devkit_path is None \
                             else devkit_path
-        self._data_path = os.path.join(self._devkit_path, image_set)
+        self._data_path = os.path.join(self._devkit_path, "images")
         self._classes = ('__background__', # always index 0
                          'traffic-sign')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))

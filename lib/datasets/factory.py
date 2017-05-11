@@ -35,6 +35,10 @@ for year in ['2015']:
 
 __sets["tt100k_train"] = (lambda img_set="train": tt100k(img_set))
 __sets["tt100k_test"]  = (lambda img_set="test": tt100k(img_set))
+__sets["tt100k_train5000"]  = (lambda img_set="train5000": tt100k(img_set))
+__sets["tt100k_train32"]  = (lambda img_set="train32": tt100k(img_set))
+__sets["tt100k_val1102"]  = (lambda img_set="val1102": tt100k(img_set))
+__sets["tt100k_val32"]  = (lambda img_set="val32": tt100k(img_set))
 
 def get_imdb(name):
     """Get an imdb (image database) by name."""

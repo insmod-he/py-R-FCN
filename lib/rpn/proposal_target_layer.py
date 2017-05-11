@@ -16,7 +16,9 @@ import sys
 import os
 import json
 sys.path.append("../../data/TT100K")
-from anno_func import get_instance_segs
+from anno_func import get_instance_segs,random_show_seg
+import pdb
+import cv2
 
 DEBUG = False
 
@@ -50,9 +52,9 @@ class ProposalTargetLayer(caffe.Layer):
         # bbox_outside_weights
         top[4].reshape(1, self._num_classes * 4, 1, 1)
         # segments targets
-        top[5].reshape(1, self._seg_num, 1, 1)
+        top[5].reshape(1, self._seg_num*2, 1, 1)
         # segments weights
-        top[6].reshape(1, self._seg_num, 1, 1)
+        top[6].reshape(1, self._seg_num*2, 1, 1)
 
     def forward(self, bottom, top):
         # Proposal ROIs (0, x1, y1, x2, y2) coming from RPN
@@ -83,15 +85,14 @@ class ProposalTargetLayer(caffe.Layer):
             all_rois, gt_boxes, fg_rois_per_image,
             rois_per_image, self._num_classes)
 
-        if DEBUG:
+        '''if DEBUG:
             print 'num fg: {}'.format((labels > 0).sum())
             print 'num bg: {}'.format((labels == 0).sum())
-            self._count += 1
             self._fg_num += (labels > 0).sum()
             self._bg_num += (labels == 0).sum()
             print 'num fg avg: {}'.format(self._fg_num / self._count)
             print 'num bg avg: {}'.format(self._bg_num / self._count)
-            print 'ratio: {:.3f}'.format(float(self._fg_num) / float(self._bg_num))
+            print 'ratio: {:.3f}'.format(float(self._fg_num) / float(self._bg_num))'''
 
         # sampled rois
         # modified by ywxiong
@@ -123,19 +124,55 @@ class ProposalTargetLayer(caffe.Layer):
         top[4].reshape(*bbox_inside_weights.shape)
         top[4].data[...] = np.array(bbox_inside_weights > 0).astype(np.float32)
 
-        # bottom[2] --> image name
-        assert bottom[2].data.size()==1
-        imgid = "%d"% int(bottom[2].data[:][0])
+        # bottom[2] --> image_id, flip_flag
+        #pdb.set_trace()
+        assert bottom[2].data.size==2
+
+        img_info = bottom[2].data.reshape([2])
+        imgid = "%d"% int(img_info[0])
+        flipped = bool(img_info[1])
+        #print "proposal layer: image_id=",imgid,"flipped=",flipped
 
         # 1.Check the format of rois. 2.The format of segs
-        roi_boxes = rois[:,1:].tolist()
-        segs = get_instance_segs(roi_boxes, self._anno_dict, imgid, line_num=self._seg_num)
+        ori_img_size = 2048
+        now_img_size = cfg.TRAIN.SCALES[0]
+        scale = np.float(now_img_size) / np.float(ori_img_size)
+        roi_boxes = (rois[:,1:,0,0] * 1.0/scale).tolist()
+        segs = get_instance_segs(roi_boxes, self._anno_dict, imgid, flipped, line_num=self._seg_num, img_size=2048)
         seg_targets = []
         seg_weights = []
-        roi_num = len(roi_boxes)
-        assert len(segs==roi_num)
 
-        for idx in xrange(roi_num):
+        if DEBUG:
+            img_root = "/data2/HongliangHe/work2017/TrafficSign/seg_mask/py-R-FCN/data/TT100K/images/"
+            debug_save_path = "/data2/HongliangHe/work2017/TrafficSign/seg_mask/py-R-FCN/experiments/0509_seg_mask/debug_imgs"
+            img_name = imgid+".jpg"
+            img_path = os.path.join(img_root, img_name)
+            img = cv2.imread(img_path)
+            if flipped:
+                #pdb.set_trace()
+                img = cv2.flip(img, 1)
+
+            for seg in segs:
+                for box in gt_boxes:
+                    box = box[0:4] / scale
+                    pt1 = (int(box[0]+0.5), int(box[1]+0.5))
+                    pt2 = (int(box[2]+0.5), int(box[3]+0.5))
+                    cv2.rectangle(img, pt1, pt2, color=(255,0,255), thickness=1)
+
+                for y,x1,x2 in seg:
+                    pt1 = (int(x1+0.5), int(y+0.5))
+                    pt2 = (int(x2+0.5), int(y+0.5))
+                    cv2.line(img, pt1, pt2, color=(0,255,0), thickness=1)
+                    cv2.circle(img, pt1, 1, (255,0,0), 3)
+                    cv2.circle(img, pt2, 1, (0,0,255), 3)
+
+            save_path = os.path.join(debug_save_path, img_name)
+            img = cv2.resize(img, (1024,1024))
+            cv2.imwrite(save_path, img)
+            print "saved image:",save_path
+
+        # if outside the image??
+        for idx in xrange(len(segs)):
             seg = segs[idx]
             left_pts  = []
             right_pts = []
@@ -150,8 +187,9 @@ class ProposalTargetLayer(caffe.Layer):
                     right_weights.append(0)
             else:
                 # ROIs (0, x1, y1, x2, y2)
-                roi_width = rois[idx, 3] - rois[idx, 1]
-                roi_x_ctr = (rois[idx,3] + rois[idx,1])/2.0
+                seg = np.array(seg) * scale
+                roi_width = (rois[idx, 3] - rois[idx, 1])[0][0]
+                roi_x_ctr = (rois[idx,3] + rois[idx,1])[0][0] /2.0
                 for y_idx in xrange(self._seg_num):
                     x1 = seg[y_idx][1]
                     x2 = seg[y_idx][2]
@@ -161,8 +199,11 @@ class ProposalTargetLayer(caffe.Layer):
                     left_weights.append(1.0)
                     right_pts.append(dx2)
                     right_weights.append(1.0)
-            seg_targets.append( left_pts.extend(right_pts) )
-            seg_weights.append( left_weights.extend(right_weights) )
+
+            left_pts.extend(right_pts)
+            left_weights.extend(right_weights)
+            seg_targets.append( left_pts )
+            seg_weights.append( left_weights )
 
         # N * seg_num
         seg_targets = np.array(seg_targets).astype(np.float32)
