@@ -1,0 +1,16 @@
+train_net: "tt100k_train_agnostic_ohem_s16_rpn15.prototxt"
+base_lr: 0.001
+lr_policy: "step"
+gamma: 0.1
+stepsize: 30000
+display: 10
+
+momentum: 0.9
+weight_decay: 0.0005
+# We disable standard caffe solver snapshotting and implement our own snapshot
+# function
+snapshot: 10000
+# We still use the snapshot prefix, though
+snapshot_prefix: "./snapshot/resnet50_rfcn_ohem_s16_anchor15"
+iter_size: 2
+# debug_info: true

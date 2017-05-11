@@ -52,9 +52,9 @@ class ProposalTargetLayer(caffe.Layer):
         # bbox_outside_weights
         top[4].reshape(1, self._num_classes * 4, 1, 1)
         # segments targets
-        top[5].reshape(1, self._seg_num*2, 1, 1)
+        top[5].reshape(1, self._seg_num*2+2, 1, 1)
         # segments weights
-        top[6].reshape(1, self._seg_num*2, 1, 1)
+        top[6].reshape(1, self._seg_num*2+2, 1, 1)
 
     def forward(self, bottom, top):
         # Proposal ROIs (0, x1, y1, x2, y2) coming from RPN
@@ -152,7 +152,11 @@ class ProposalTargetLayer(caffe.Layer):
                 #pdb.set_trace()
                 img = cv2.flip(img, 1)
 
-            for seg in segs:
+            for seg_ins in segs:
+                if len(seg_ins)>0:
+                    seg,start_pos,end_pos = seg_ins
+                else:
+                    continue
                 for box in gt_boxes:
                     box = box[0:4] / scale
                     pt1 = (int(box[0]+0.5), int(box[1]+0.5))
@@ -167,13 +171,21 @@ class ProposalTargetLayer(caffe.Layer):
                     cv2.circle(img, pt2, 1, (0,0,255), 3)
 
             save_path = os.path.join(debug_save_path, img_name)
-            img = cv2.resize(img, (1024,1024))
+            #img = cv2.resize(img, (1024,1024))
             cv2.imwrite(save_path, img)
             print "saved image:",save_path
 
         # if outside the image??
         for idx in xrange(len(segs)):
-            seg = segs[idx]
+            seg_ins = segs[idx]
+            if len(seg_ins) > 0:
+                seg,start_pos,end_pos = seg_ins
+                #print "start_pos:",start_pos,"end_pos:",end_pos
+            else:
+                seg = []
+                start_pos = 0
+                end_pos   = 0
+
             left_pts  = []
             right_pts = []
             left_weights  = []
@@ -190,18 +202,35 @@ class ProposalTargetLayer(caffe.Layer):
                 seg = np.array(seg) * scale
                 roi_width = (rois[idx, 3] - rois[idx, 1])[0][0]
                 roi_x_ctr = (rois[idx,3] + rois[idx,1])[0][0] /2.0
+
                 for y_idx in xrange(self._seg_num):
-                    x1 = seg[y_idx][1]
-                    x2 = seg[y_idx][2]
-                    dx1 = (x1 - roi_x_ctr) / roi_width
-                    dx2 = (x2 - roi_x_ctr) / roi_width
-                    left_pts.append(dx1)
-                    left_weights.append(1.0)
-                    right_pts.append(dx2)
-                    right_weights.append(1.0)
+                    if y_idx>=start_pos and y_idx<=end_pos:
+                        x1 = seg[y_idx][1]
+                        x2 = seg[y_idx][2]
+                        dx1 = (x1 - roi_x_ctr) / roi_width
+                        dx2 = (x2 - roi_x_ctr) / roi_width
+                        left_pts.append(dx1)
+                        left_weights.append(1.0)
+                        right_pts.append(dx2)
+                        right_weights.append(1.0)
+                    else:
+                        left_pts.append(0)
+                        left_weights.append(0)
+                        right_pts.append(0)
+                        right_weights.append(0)
+
+            dstart = np.float(start_pos) / np.float(self._seg_num)
+            dend   = np.float(end_pos) / np.float(self._seg_num)
+            #print "dstart:",dstart,"dend:",dend
 
             left_pts.extend(right_pts)
+            left_pts.append( dstart )    # start_pos
+            left_pts.append( dend )      # end_pos
+
             left_weights.extend(right_weights)
+            left_weights.append( 2.0 )
+            left_weights.append( 2.0 )
+
             seg_targets.append( left_pts )
             seg_weights.append( left_weights )
 
