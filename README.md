@@ -1,7 +1,10 @@
 # py-R-FCN
 R-FCN: Object Detection via Region-based Fully Convolutional Networks
 
-py-R-FCN now supports both joint training and alternative optimization. 
+
+**It is highly recommended to use the [MXNet version of R-FCN/Deformable R-FCN](https://github.com/msracver/Deformable-ConvNets), which supports multi-GPU train/test.**
+
+**WARNING: This code does not support CPU-only mode.** (See https://github.com/Orpine/py-R-FCN/issues/28).
 
 ### Disclaimer
 
@@ -53,7 +56,7 @@ If you find R-FCN useful in your research, please consider citing:
 
 |                   | training data       | test data             | mAP@[0.5:0.95]   | time/img (Titian X)|
 |-------------------|:-------------------:|:---------------------:|:-----:|:------------------:|
-|R-FCN, ResNet-101  | COCO 2014 train     | COCO 2014 val         | 27.9% | 0.0138sec          |
+|R-FCN, ResNet-101  | COCO 2014 train     | COCO 2014 val         | 27.9% | 0.138sec          |
 
 #### alternative optimization
 
